@@ -7,7 +7,13 @@ defmodule Caspax.MixProject do
       version: "0.1.0",
       elixir: "~> 1.6",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      description: "An Elixir implementation of the CASPaxos distributed compare-and-set KV.",
+      package: [
+        links: ["https://github.com/ericentin/caspax"],
+        maintainers: ["Eric Entin"],
+        licenses: ["Apache 2.0"]
+      ]
     ]
   end
 

@@ -4,10 +4,12 @@ An Elixir implementation of the CASPaxos distributed compare-and-set KV.
 
 Currently incomplete, but the main portion of the protocol is implemented for erlang nodes. Test with `mix run test.exs`.
 
+Still to do: grow/shrink cluster, deletion, GC
+
 Related reading:
-https://arxiv.org/abs/1802.07000
-https://github.com/peterbourgon/caspaxos
-https://github.com/tschottdorf/caspaxos-tla
+* https://arxiv.org/abs/1802.07000
+* https://github.com/peterbourgon/caspaxos
+* https://github.com/tschottdorf/caspaxos-tla
 
 ## Installation
 
