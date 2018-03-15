@@ -25,6 +25,6 @@ defmodule Caspax.MixProject do
   end
 
   defp deps do
-    []
+    [{:ex_doc, ">= 0.0.0", only: :dev}]
   end
 end
