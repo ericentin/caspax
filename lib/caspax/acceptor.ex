@@ -57,13 +57,9 @@ defmodule Caspax.Acceptor do
         Caspax.Proposer.reply(proposer, ref, :reject)
         {:noreply, state}
 
-      %{^key => {promised, _accepted, _value}} ->
-        Caspax.Proposer.reply(proposer, ref, :confirm)
-        {:noreply, Map.put(state, key, {promised, ballot, new_value})}
-
       _ ->
-        Caspax.Proposer.reply(proposer, ref, :reject)
-        {:noreply, state}
+        Caspax.Proposer.reply(proposer, ref, :confirm)
+        {:noreply, Map.put(state, key, {nil, ballot, new_value})}
     end
   end
 end
