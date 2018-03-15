@@ -10,7 +10,7 @@ defmodule Caspax.MixProject do
       deps: deps(),
       description: "An Elixir implementation of the CASPaxos distributed compare-and-set KV.",
       package: [
-        links: ["https://github.com/ericentin/caspax"],
+        links: %{"GitHub" => "https://github.com/ericentin/caspax"},
         maintainers: ["Eric Entin"],
         licenses: ["Apache 2.0"]
       ]
