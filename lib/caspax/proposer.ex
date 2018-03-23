@@ -1,13 +1,14 @@
 defmodule Caspax.Proposer do
+  require Logger
+
   def propose(
-        preparers,
-        acceptors,
         key,
         fun,
-        timeout \\ 5_000
+        timeout \\ 1_000
       ) do
+    preparers = :pg2.get_members(Caspax.Acceptor.Preparers)
     ballot_number = Caspax.BallotNumber.get_next()
-    quorum = div(length(preparers), 2) + 1
+    quorum = div(length(preparers), 2)
 
     preparers
     |> reply_stream(
@@ -15,12 +16,16 @@ defmodule Caspax.Proposer do
       &Caspax.Acceptor.prepare(&1, &2, &3, ballot_number, key)
     )
     |> collect_prepare_responses(quorum)
-    |> finish_prepare(acceptors, timeout, ballot_number, key, fun)
+    |> finish_prepare(timeout, ballot_number, key, fun)
   end
 
   @doc false
   def reply(proposer_proxy, ref, value) do
     send(proposer_proxy, {ref, value})
+  end
+
+  defp reply_stream([], _timeout, _send_fun) do
+    []
   end
 
   defp reply_stream(acceptors, timeout, send_fun) do
@@ -113,8 +118,18 @@ defmodule Caspax.Proposer do
   end
 
   defp finish_prepare(
-         {_value, _biggest_confirm, {highest_ballot_number, _preparer}, quorum},
+         {_value, _biggest_confirm, _biggest_reject, quorum},
          _,
+         _,
+         _,
+         _
+       )
+       when quorum > 0 do
+    {:error, :prepare_failed}
+  end
+
+  defp finish_prepare(
+         {_value, _biggest_confirm, {highest_ballot_number, _preparer}, quorum},
          _,
          _,
          _,
@@ -127,13 +142,14 @@ defmodule Caspax.Proposer do
 
   defp finish_prepare(
          {value, _biggest_confirm, _biggest_reject, _quorum},
-         acceptors,
          timeout,
          ballot_number,
          key,
          fun
        ) do
     value = fun.(value)
+    acceptors = :pg2.get_members(Caspax.Acceptor.Acceptors)
+
     quorum = div(length(acceptors), 2) + 1
 
     acceptors

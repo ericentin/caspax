@@ -16,8 +16,21 @@ defmodule Caspax.Acceptor do
   end
 
   @doc false
-  def init(args) do
-    {:ok, Map.new(args)}
+  def init(_args) do
+    parent = self()
+    :pg2.join(__MODULE__.Acceptors, parent)
+    Task.start_link(fn -> propose_and_join(parent) end)
+    {:ok, %{}}
+  end
+
+  defp propose_and_join(parent) do
+    case Caspax.Proposer.propose(nil, fn x -> x end) do
+      {:ok, nil} ->
+        :pg2.join(__MODULE__.Preparers, parent)
+
+      {:error, _} ->
+        propose_and_join(parent)
+    end
   end
 
   @doc false

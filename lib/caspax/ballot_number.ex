@@ -19,7 +19,7 @@ defmodule Caspax.BallotNumber do
   end
 
   def fast_forward(new_ballot_number) do
-    [curr] = :ets.lookup_element(Caspax.BallotNumber, Caspax.BallotNumber, 2)
+    curr = :ets.lookup_element(Caspax.BallotNumber, Caspax.BallotNumber, 2)
     diff = new_ballot_number - curr
 
     if diff > 0 do
