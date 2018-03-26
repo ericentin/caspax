@@ -3,9 +3,9 @@
 # :dbg.tracer()
 # :dbg.p(:new_processes, :m)
 
-{:ok, acceptor1} = Caspax.Acceptor.start_link([])
-{:ok, acceptor2} = Caspax.Acceptor.start_link([])
-{:ok, acceptor3} = Caspax.Acceptor.start_link([])
+{:ok, acceptor1} = Caspax.Acceptor.start_link(:acceptor1)
+{:ok, acceptor2} = Caspax.Acceptor.start_link(:acceptor2)
+{:ok, acceptor3} = Caspax.Acceptor.start_link(:acceptor3)
 preparers = [acceptor1, acceptor2, acceptor3]
 acceptors = preparers
 

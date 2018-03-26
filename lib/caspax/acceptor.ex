@@ -3,8 +3,18 @@ defmodule Caspax.Acceptor do
 
   require Logger
 
-  def start_link(args) do
-    GenServer.start_link(__MODULE__, args)
+  @module_disp inspect(__MODULE__)
+
+  defmacrop trace(name, message) do
+    if Application.get_env(:caspax, :trace) do
+      quote bind_quoted: [module_disp: @module_disp, name: name, message: message] do
+        Logger.debug(["[", module_disp, "] [", name, "] ", message])
+      end
+    end
+  end
+
+  def start_link(name \\ Module.concat(__MODULE__, node())) do
+    GenServer.start_link(__MODULE__, {Atom.to_string(name)}, name: name)
   end
 
   def prepare(preparer, proposer, ref, ballot_number, key) do
@@ -16,63 +26,110 @@ defmodule Caspax.Acceptor do
   end
 
   @doc false
-  def init(_args) do
+  def init({name}) do
     parent = self()
-    :pg2.join(__MODULE__.Acceptors, parent)
-    Task.start_link(fn -> propose_and_join(parent) end)
-    {:ok, %{}}
+
+    trace(name, "Initializing.")
+
+    :ok = :pg2.join(__MODULE__.Acceptors, parent)
+    Task.start_link(fn -> propose_and_join(name, parent) end)
+    {:ok, {name, %{}}}
   end
 
-  defp propose_and_join(parent) do
+  defp propose_and_join(name, parent) do
+    trace(name, "Attempting join propose...")
+
     case Caspax.Proposer.propose(nil, fn x -> x end) do
       {:ok, nil} ->
-        :pg2.join(__MODULE__.Preparers, parent)
+        trace(name, "Join proposal succeeded.")
+        :ok = :pg2.join(__MODULE__.Preparers, parent)
 
-      {:error, _} ->
-        propose_and_join(parent)
+      {:error, _} = error ->
+        trace(name, "Join proposal failed: #{inspect(error)}, retrying...")
+        propose_and_join(name, parent)
     end
   end
 
   @doc false
   def handle_info(
         {:prepare, proposer, ref, ballot_number, key},
-        state
+        {name, data} = state
       ) do
     ballot = {ballot_number, node(proposer)}
 
-    case state do
+    case data do
       %{^key => {promised, _accepted, _value}} when promised > ballot ->
+        trace(
+          name,
+          "Rejecting prepare (due to greater promise) for key: #{inspect(key)}, ballot: #{
+            inspect(ballot)
+          }, promised: #{inspect(promised)}"
+        )
+
         Caspax.Proposer.reply(proposer, ref, {:reject, promised, nil})
         {:noreply, state}
 
       %{^key => {_promised, accepted, _value}} when accepted > ballot ->
+        trace(
+          name,
+          "Rejecting prepare (due to greater accepted) for key: #{inspect(key)}, ballot: #{
+            inspect(ballot)
+          }, accepted: #{inspect(accepted)}"
+        )
+
         Caspax.Proposer.reply(proposer, ref, {:reject, accepted, nil})
         {:noreply, state}
 
       %{^key => {_promised, accepted, value}} ->
+        trace(
+          name,
+          "Confirming prepare for key: #{inspect(key)}, promised: #{inspect(ballot)}, accepted: #{
+            inspect(accepted)
+          }, value: #{inspect(value)}"
+        )
+
         Caspax.Proposer.reply(proposer, ref, {:confirm, accepted, value})
-        {:noreply, Map.put(state, key, {ballot, accepted, value})}
+        {:noreply, {name, Map.put(data, key, {ballot, accepted, value})}}
 
       _ ->
+        trace(
+          name,
+          "Confirming prepare for empty key: #{inspect(key)}, promised: #{inspect(ballot)}"
+        )
+
         Caspax.Proposer.reply(proposer, ref, {:confirm, nil, nil})
-        {:noreply, Map.put(state, key, {ballot, nil, nil})}
+        {:noreply, {name, Map.put(data, key, {ballot, nil, nil})}}
     end
   end
 
   def handle_info(
         {:accept, proposer, ref, ballot_number, key, new_value},
-        state
+        {name, data} = state
       ) do
     ballot = {ballot_number, node(proposer)}
 
-    case state do
+    case data do
       %{^key => {promised, accepted, _value}} when promised > ballot or accepted > ballot ->
+        trace(
+          name,
+          "Rejecting accept for key: #{inspect(key)}, ballot: #{inspect(ballot)}, promised: #{
+            inspect(promised)
+          }, accepted: #{inspect(accepted)}, new_value: #{inspect(new_value)}"
+        )
+
         Caspax.Proposer.reply(proposer, ref, :reject)
         {:noreply, state}
 
       _ ->
+        trace(
+          name,
+          "Confirming accept for key: #{inspect(key)}, ballot: #{inspect(ballot)}, new_value: #{
+            inspect(new_value)
+          }"
+        )
+
         Caspax.Proposer.reply(proposer, ref, :confirm)
-        {:noreply, Map.put(state, key, {nil, ballot, new_value})}
+        {:noreply, {name, Map.put(data, key, {nil, ballot, new_value})}}
     end
   end
 end
