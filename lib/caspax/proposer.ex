@@ -1,5 +1,5 @@
 defmodule Caspax.Proposer do
-  require Logger
+  use Caspax.Logger
 
   def propose(
         key,
@@ -8,7 +8,20 @@ defmodule Caspax.Proposer do
       ) do
     preparers = :pg2.get_members(Caspax.Acceptor.Preparers)
     ballot_number = Caspax.BallotNumber.get_next()
-    quorum = div(length(preparers), 2)
+
+    quorum =
+      case length(preparers) do
+        0 -> 0
+        1 -> 1
+        other -> div(other, 2) + 1
+      end
+
+    trace(
+      inspect(self()),
+      "Preparing key: #{inspect(key)}, with ballot number: #{ballot_number} and quorum: #{quorum} to preparers: #{
+        inspect(preparers)
+      }"
+    )
 
     preparers
     |> reply_stream(
@@ -118,17 +131,6 @@ defmodule Caspax.Proposer do
   end
 
   defp finish_prepare(
-         {_value, _biggest_confirm, _biggest_reject, quorum},
-         _,
-         _,
-         _,
-         _
-       )
-       when quorum > 0 do
-    {:error, :prepare_failed}
-  end
-
-  defp finish_prepare(
          {_value, _biggest_confirm, {highest_ballot_number, _preparer}, quorum},
          _,
          _,
@@ -136,7 +138,26 @@ defmodule Caspax.Proposer do
          _
        )
        when quorum > 0 do
+    trace(
+      inspect(self()),
+      "Prepare failed with rejection(s), quorum_remaing: #{quorum}, new highest ballot: #{
+        highest_ballot_number
+      } from #{_preparer}"
+    )
+
     Caspax.BallotNumber.fast_forward(highest_ballot_number)
+    {:error, :prepare_failed}
+  end
+
+  defp finish_prepare(
+         {_value, _biggest_confirm, _biggest_reject, quorum},
+         _,
+         _,
+         _,
+         _
+       )
+       when quorum > 0 do
+    trace(inspect(self()), "Prepare failed without rejection, quorum remaining: #{quorum}")
     {:error, :prepare_failed}
   end
 
@@ -147,17 +168,42 @@ defmodule Caspax.Proposer do
          key,
          fun
        ) do
+    trace(
+      inspect(self()),
+      "Prepare succeded for key: #{inspect(key)}, with ballot number: #{ballot_number}, current value: #{
+        inspect(value)
+      }"
+    )
+
     value = fun.(value)
     acceptors = :pg2.get_members(Caspax.Acceptor.Acceptors)
 
     quorum = div(length(acceptors), 2) + 1
 
+    trace(
+      inspect(self()),
+      "Accepting key: #{inspect(key)}, with new value: #{inspect(value)}, ballot number: #{
+        ballot_number
+      } and quorum: #{quorum} to acceptors: #{inspect(acceptors)}"
+    )
+
     acceptors
     |> reply_stream(timeout, &Caspax.Acceptor.accept(&1, &2, &3, ballot_number, key, value))
     |> collect_accept_responses(quorum)
     |> case do
-      remaining_quorum when remaining_quorum > 0 -> {:error, :accept_failed}
-      _ -> {:ok, value}
+      remaining_quorum when remaining_quorum > 0 ->
+        trace(inspect(self()), "Accept failed, quorum remaining: #{remaining_quorum}")
+        {:error, :accept_failed}
+
+      _ ->
+        trace(
+          inspect(self()),
+          "Accept succeeded for key: #{inspect(key)}, with ballot number: #{ballot_number}, new value: #{
+            inspect(value)
+          }"
+        )
+
+        {:ok, value}
     end
   end
 

@@ -1,17 +1,7 @@
 defmodule Caspax.Acceptor do
   use GenServer
 
-  require Logger
-
-  @module_disp inspect(__MODULE__)
-
-  defmacrop trace(name, message) do
-    if Application.get_env(:caspax, :trace) do
-      quote bind_quoted: [module_disp: @module_disp, name: name, message: message] do
-        Logger.debug(["[", module_disp, "] [", name, "] ", message])
-      end
-    end
-  end
+  use Caspax.Logger
 
   def start_link(name \\ Module.concat(__MODULE__, node())) do
     GenServer.start_link(__MODULE__, {Atom.to_string(name)}, name: name)
@@ -28,9 +18,7 @@ defmodule Caspax.Acceptor do
   @doc false
   def init({name}) do
     parent = self()
-
     trace(name, "Initializing.")
-
     :ok = :pg2.join(__MODULE__.Acceptors, parent)
     Task.start_link(fn -> propose_and_join(name, parent) end)
     {:ok, {name, %{}}}
@@ -44,8 +32,8 @@ defmodule Caspax.Acceptor do
         trace(name, "Join proposal succeeded.")
         :ok = :pg2.join(__MODULE__.Preparers, parent)
 
-      {:error, _} = error ->
-        trace(name, "Join proposal failed: #{inspect(error)}, retrying...")
+      {:error, _reason} ->
+        trace(name, "Join proposal failed: #{inspect(_reason)}, retrying...")
         propose_and_join(name, parent)
     end
   end

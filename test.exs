@@ -9,6 +9,20 @@
 preparers = [acceptor1, acceptor2, acceptor3]
 acceptors = preparers
 
+fn -> :ok end
+|> Stream.repeatedly()
+|> Enum.reduce_while(:ok, fn _, _ ->
+  case length(:pg2.get_members(Caspax.Acceptor.Preparers)) do
+    3 ->
+      IO.inspect("Cluster arrived!")
+      {:halt, :ok}
+
+    _ ->
+      :timer.sleep(50)
+      {:cont, :ok}
+  end
+end)
+
 IO.inspect(
   Caspax.Proposer.propose(:hello, fn x ->
     if is_nil(x) do
