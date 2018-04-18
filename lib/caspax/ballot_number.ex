@@ -1,5 +1,5 @@
 defmodule Caspax.BallotNumber do
-  def new do
+  def init do
     :ets.new(Caspax.BallotNumber, [
       :public,
       :set,
