@@ -2,7 +2,7 @@ defmodule Caspax.Application do
   use Application
 
   def start(_type, _args) do
-    Caspax.BallotNumber.new()
+    Caspax.BallotNumber.init()
     :pg2.create(Caspax.Acceptor.Preparers)
     :pg2.create(Caspax.Acceptor.Acceptors)
 
