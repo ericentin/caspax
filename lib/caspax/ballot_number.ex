@@ -8,11 +8,14 @@ defmodule Caspax.BallotNumber do
         {:read_concurrency, true},
         {:write_concurrency, true}
       ])
+      get_next()
     rescue
       # the ets table already exists
       # so we return the name of the table as :ets.new/2 does
       ArgumentError -> __MODULE__
     end
+
+    :ok
   end
 
   def get_next do
@@ -20,7 +23,7 @@ defmodule Caspax.BallotNumber do
       __MODULE__,
       __MODULE__,
       1,
-      {__MODULE__, -1}
+      {__MODULE__, -2}
     )
   end
 
