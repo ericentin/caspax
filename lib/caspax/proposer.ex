@@ -1,6 +1,10 @@
 defmodule Caspax.Proposer do
   use Caspax.Logger
 
+  def query(key, timeout \\ 1_000) do
+    propose(key, fn x -> x end, timeout)
+  end
+
   def propose(
         key,
         fun,
